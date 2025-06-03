@@ -187,6 +187,9 @@ type ReverseProxyConfig struct {
 	// 对于流式响应 (ContentLength -1 或 Content-Type text/event-stream) 会被覆盖为立即刷新。
 	// 注意: 此选项仅在 ServeReverseProxy (自动模式) 中生效。
 	FlushInterval time.Duration
+
+	// DirectUrl 跳过拼接, 传入target即是完整目标
+	isDirectUrl bool
 }
 
 // defaultProxyErrorHandler 是默认的错误处理器。
@@ -293,8 +296,15 @@ func ServeReverseProxyCore(c *touka.Context, config ReverseProxyConfig, target *
 		RawQuery: finalTargetQuery,
 	}
 
+	var outboundUrl string
+	if !config.isDirectUrl {
+		outboundUrl = outURL.String()
+	} else {
+		outboundUrl = target.String()
+	}
+
 	// 创建 httpc 请求构建器
-	outReqBuilder := httpClient.NewRequestBuilder(inReq.Method, outURL.String())
+	outReqBuilder := httpClient.NewRequestBuilder(inReq.Method, outboundUrl)
 	outReqBuilder.WithContext(inReq.Context()) // 传递上下文，用于超时、取消和追踪
 	outReqBuilder.NoDefaultHeaders()           // 代理通常不应添加自己的默认头部 (如 User-Agent)，而是转发或按需修改
 
@@ -441,11 +451,7 @@ func ServeReverseProxyCore(c *touka.Context, config ReverseProxyConfig, target *
 // `backendResp.Body` 将是与后端服务器的劫持连接 (`io.ReadWriteCloser`)。
 // 调用者此时通常不需要再对客户端做 HTTP 响应，因为连接已被劫持用于新协议。
 // 调用者仍需关闭这个 `backendResp.Body` (劫持的连接) 当它不再需要时。
-func ServeReverseProxyManual(
-	c *touka.Context,
-	config ReverseProxyConfig,
-	dynamicTargetURL ...string,
-) (processedBackendHeader http.Header, backendResp *http.Response, err error) {
+func ServeReverseProxyManual(c *touka.Context, config ReverseProxyConfig, dynamicTargetURL ...string) (processedBackendHeader http.Header, backendResp *http.Response, err error) {
 	// 初始化并验证代理配置
 	target, httpClient, _, prepErr := prepareReverseProxy(c, &config, dynamicTargetURL...)
 	if prepErr != nil {
@@ -636,6 +642,33 @@ func SimpleSingleReverseProxy(targetURL string, c *touka.Context) {
 	// 使用一个空的 ReverseProxyConfig，让 ServeReverseProxy 使用所有默认值
 	// (除了 TargetURL，它会被 dynamicTargetURL 参数覆盖)
 	config := ReverseProxyConfig{}
+	ServeReverseProxy(c, config, targetURL)
+}
+
+// DirectSingleReverseProxy 提供了一个简单的接口来反向代理到一个完整的 URL，
+// 并且允许传入一个临时的 ReverseProxyConfig 来覆盖默认配置。
+// 与 SimpleSingleReverseProxy 不同，它不使用完全默认配置，而是基于传入的 tempConfig。
+// 同时，它设置 config.isDirectUrl = true，表示 targetURL 参数就是完整的后端 URL，
+// 不需要再与原始请求路径拼接。
+//
+// 示例用法：
+//
+//	r.GET("/direct-proxy", func(c *touka.Context) {
+//	    targetURL := c.Query("target") // 从查询参数获取完整的后端 URL
+//	    if targetURL == "" {
+//	        c.String(http.StatusBadRequest, "Missing target URL")
+//	        return
+//	    }
+//	    // 可以在这里设置一些临时的配置，例如超时时间
+//	    tempConfig := toukautil.ReverseProxyConfig{
+//	        HTTPClient: &http.Client{ Timeout: 10 * time.Second },
+//	    }
+//	    toukautil.DirectSingleReverseProxy(targetURL, &tempConfig, c)
+//	})
+func DirectSingleReverseProxy(targetURL string, tempConfig *ReverseProxyConfig, c *touka.Context) {
+	config := *tempConfig
+	config.TargetURL = targetURL
+	config.isDirectUrl = true
 	ServeReverseProxy(c, config, targetURL)
 }
 
