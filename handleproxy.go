@@ -1,11 +1,18 @@
-// 文件: toukautil/reverse_proxy.go
+// Copyright 2011 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE.BSD file.
+// Copyright 2025 Infinite-Iroha Group, WJQSERVER. All rights reserved.
+// Use of this source code is governed by Apache 2.0
+// license that can be found in the LICENSE file.
+
+// Touka reverse proxy handler
+
 package toukautil
 
 import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"net"
 	"net/http"
@@ -196,7 +203,8 @@ type ReverseProxyConfig struct {
 // 它记录错误并通过 Touka Context 返回一个 502 Bad Gateway 响应。
 func defaultProxyErrorHandler(c *touka.Context, err error) {
 	// 使用英文记录错误日志，包含请求方法和路径
-	log.Printf("toukautil.ReverseProxy: Error for request %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
+	// 已替换为 c.Errorf
+	c.Errorf("toukautil.ReverseProxy: Error for request %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
 	if !c.Writer.Written() { // 只有在响应头还没写入时才尝试发送错误响应
 		// 使用 Touka Context 的 String 方法返回 502 错误
 		// 返回英文错误信息给客户端
@@ -557,7 +565,8 @@ func ServeReverseProxy(c *touka.Context, config ReverseProxyConfig, dynamicTarge
 			}
 			// 如果中间件调用了 c.Abort()，我们也应该中止
 			if c.IsAborted() {
-				log.Println("toukautil.ServeReverseProxy: ResponseMiddleware aborted the context.") // 英文日志
+				// 已替换为 c.Infof
+				c.Infof("toukautil.ServeReverseProxy: ResponseMiddleware aborted the context.")
 				return
 			}
 		}
@@ -573,8 +582,8 @@ func ServeReverseProxy(c *touka.Context, config ReverseProxyConfig, dynamicTarge
 		// 只有在不是正常的网络关闭或上下文取消时才打印详细日志。
 		if !isNetErrClosed(copyErr) && !errors.Is(copyErr, c.Request.Context().Err()) {
 			// 使用英文记录日志
-			log.Printf("toukautil.ServeReverseProxy: Error copying response body for %s %s: %v",
-				c.Request.Method, c.Request.URL.Path, copyErr)
+			// 已替换为 c.Errorf
+			c.Errorf("toukautil.ServeReverseProxy: Error copying response body for %s %s: %v", c.Request.Method, c.Request.URL.Path, copyErr)
 		}
 		// errorHandler 在这里不适合调用，因为它可能会尝试再次写入响应头。
 		// Touka 的 Context 可能会因客户端断开而自动中止。
@@ -783,7 +792,8 @@ func handleProtocolUpgrade(c *touka.Context, inReq *http.Request, backendResp *h
 		go func() {
 			select {
 			case <-ctx.Done(): // 上下文被取消
-				log.Printf("toukautil.handleProtocolUpgrade: Context cancelled, closing connections for %s.", inReq.URL.Path) // 英文日志
+				// 已替换为 c.Infof
+				c.Infof("toukautil.handleProtocolUpgrade: Context cancelled, closing connections for %s.", inReq.URL.Path)
 				closeClientOnce.Do(func() { clientConn.Close() })
 				closeBackendOnce.Do(func() { backendConn.Close() })
 			case <-stopWatcher: // handleProtocolUpgrade 正常退出
@@ -856,38 +866,38 @@ func handleProtocolUpgrade(c *touka.Context, inReq *http.Request, backendResp *h
 	case err = <-errChan: // 捕获第一个发生的实际I/O复制错误
 		// 如果 errChan 收到错误，它会首先被选中
 		if err != nil { // 仅当确实是错误时（非nil，尽管 isNetErrClosed 可能已过滤）
-			log.Printf("toukautil.handleProtocolUpgrade: Data copy error during upgrade: %v", err) // 英文日志
-			return err                                                                             // 返回捕获到的第一个错误
+			c.Errorf("toukautil.handleProtocolUpgrade: Data copy error during upgrade: %v", err) // 英文日志
+			return err                                                                           // 返回捕获到的第一个错误
 		}
 		// 如果 err 是 nil (例如，一个 copy goroutine 正常结束发送 nil 到 errChan，但这是不期望的)
 		// 此时，我们应该等待 waitAllCopiesDone 或 ctx.Done()
 		select {
 		case <-waitAllCopiesDone: // 另一个也完成了
-			log.Printf("toukautil.handleProtocolUpgrade: Bidirectional copy completed (one side reported nil error) for %s", inReq.URL.Path) // 英文日志
+			c.Infof("toukautil.handleProtocolUpgrade: Bidirectional copy completed (one side reported nil error) for %s", inReq.URL.Path) // 英文日志
 			return nil
 		case <-ctx.Done(): // 上下文在等待期间取消
-			log.Printf("toukautil.handleProtocolUpgrade: Context cancelled while waiting after one-sided nil error for %s", inReq.URL.Path) // 英文日志
-			return fmt.Errorf("context cancelled during upgrade wait: %w", ctx.Err())                                                       // 英文错误
+			c.Infof("toukautil.handleProtocolUpgrade: Context cancelled while waiting after one-sided nil error for %s", inReq.URL.Path) // 英文日志
+			return fmt.Errorf("context cancelled during upgrade wait: %w", ctx.Err())                                                    // 英文错误
 		}
 	case <-waitAllCopiesDone: // 所有复制正常完成 (wg.Wait() 返回，没有错误发送到 errChan)
-		log.Printf("toukautil.handleProtocolUpgrade: Bidirectional copy completed successfully for %s", inReq.URL.Path) // 英文日志
+		c.Infof("toukautil.handleProtocolUpgrade: Bidirectional copy completed successfully for %s", inReq.URL.Path) // 英文日志
 		// 此时，仍需检查在 wg.Wait() 完成后，是否有非常晚的错误或上下文取消。
 		// （这种概率较小，但为了健壮性可以检查）
 		select {
 		case err = <-errChan: // 捕获可能在等待期间发生的、但未被第一个 select case 选中的错误
 			if err != nil {
-				log.Printf("toukautil.handleProtocolUpgrade: Late data copy error after wg.Wait: %v", err) // 英文日志
+				c.Errorf("toukautil.handleProtocolUpgrade: Late data copy error after wg.Wait: %v", err) // 英文日志
 				return err
 			}
 		case <-ctx.Done(): // 上下文在所有复制完成后、此select case前被取消
-			log.Printf("toukautil.handleProtocolUpgrade: Context cancelled shortly after copy completion for %s", inReq.URL.Path) // 英文日志
-			return fmt.Errorf("context cancelled shortly after copy completion: %w", ctx.Err())                                   // 英文错误
+			c.Infof("toukautil.handleProtocolUpgrade: Context cancelled shortly after copy completion for %s", inReq.URL.Path) // 英文日志
+			return fmt.Errorf("context cancelled shortly after copy completion: %w", ctx.Err())                                // 英文错误
 		default:
 			// 无进一步错误或取消
 		}
 		return nil // 一切正常
 	case <-ctx.Done(): // 上下文在任何复制错误或所有复制完成之前被取消
-		log.Printf("toukautil.handleProtocolUpgrade: Context cancelled during upgrade data copy for %s", inReq.URL.Path) // 英文日志
+		c.Infof("toukautil.handleProtocolUpgrade: Context cancelled during upgrade data copy for %s", inReq.URL.Path) // 英文日志
 		// 在返回前，等待复制 goroutine 因上下文取消或连接关闭而终止
 		<-waitAllCopiesDone                                                            // 这确保了 goroutines 不会泄漏
 		return fmt.Errorf("context cancelled during upgrade data copy: %w", ctx.Err()) // 英文错误
