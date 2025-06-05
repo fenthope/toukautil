@@ -244,6 +244,15 @@ func (rlw *RateLimitedWriter) Written() bool {
 	return false // 无法确定，或假设未写入
 }
 
+// IsHijacked 返回连接是否已被劫持。
+// 它尝试调用底层 Writer 的 IsHijacked() 方法。
+func (rlw *RateLimitedWriter) IsHijacked() bool {
+	if trw, ok := rlw.w.(touka.ResponseWriter); ok { // ResponseWriter 是 touka.ResponseWriter 接口
+		return trw.IsHijacked()
+	}
+	return false // 如果底层不支持，返回 false
+}
+
 // 以下函数用于从你的 limitreader 包中解析速率字符串。
 // 你需要确保这些函数在你的项目中是可访问的 (例如，将它们移动到共享的工具包，
 // 或者如果 RateLimitedWriter 和 RateLimitedReader 在同一个包中，则可以直接使用)。
@@ -260,44 +269,3 @@ type UnDefinedRateErr struct {
 func (e *UnDefinedRateErr) Error() string {
 	return e.s
 }
-
-/*
-// ParseRate 解析人类可读的速率字符串 (例如 "100kbps", "1.5MB/s")。
-// 返回速率 (rate.Limit, Bytes/s) 和错误。
-// "-1" 表示无限速率 (rate.Inf)。"0" 被视为无效并返回 UnDefinedRateErr。
-func ParseRate(rateStr string) (rate.Limit, error) {
-	rateStr = strings.TrimSpace(rateStr)
-	if rateStr == UnlimitedRateString {
-		return rate.Inf, nil
-	}
-	if rateStr == UnDefinedRateString {
-		return 0, &UnDefinedRateErr{s: "rate string '0' is undefined; use '-1' for unlimited rate"}
-	} // 英文错误
-	if rateStr == "" {
-		return 0, fmt.Errorf("rate string cannot be empty")
-	} // 英文错误
-
-	match := rateRegex.FindStringSubmatch(rateStr)
-	if len(match) < 3 {
-		return 0, fmt.Errorf("invalid rate format: %s", rateStr)
-	} // 英文错误
-
-	valueStr := match[1]
-	unitStr := strings.ToLower(match[2])
-	value, err := strconv.ParseFloat(valueStr, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid number in rate '%s': %w", rateStr, err)
-	} // 英文错误
-
-	multiplier, ok := unitToBytesPerSec[unitStr]
-	if !ok {
-		return 0, fmt.Errorf("unknown rate unit '%s' in '%s'", match[2], rateStr)
-	} // 英文错误
-
-	bytesPerSecond := value * multiplier
-	if bytesPerSecond <= 0 {
-		return 0, fmt.Errorf("calculated rate is non-positive (%.2f B/s) from '%s'", bytesPerSecond, rateStr)
-	} // 英文错误
-	return rate.Limit(bytesPerSecond), nil
-}
-*/
