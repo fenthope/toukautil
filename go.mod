@@ -1,6 +1,6 @@
-module toukautil
+module github.com/fenthope/toukautil
 
-go 1.24.3
+go 1.24.4
 
 require (
 	github.com/WJQSERVER-STUDIO/httpc v0.5.1

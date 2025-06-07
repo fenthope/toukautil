@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"toukautil/ascii"
+	"github.com/fenthope/toukautil/ascii"
 
 	"github.com/WJQSERVER-STUDIO/httpc"
 	"github.com/infinite-iroha/touka"
