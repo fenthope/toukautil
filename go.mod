@@ -3,7 +3,7 @@ module github.com/fenthope/toukautil
 go 1.24.4
 
 require (
-	github.com/WJQSERVER-STUDIO/httpc v0.7.0
+	github.com/WJQSERVER-STUDIO/httpc v0.7.1
 	github.com/infinite-iroha/touka v0.2.1
 	golang.org/x/net v0.41.0
 	golang.org/x/time v0.12.0
