@@ -25,6 +25,7 @@ import (
 
 	"github.com/fenthope/toukautil/ascii"
 
+	"github.com/WJQSERVER-STUDIO/go-utils/iox"
 	"github.com/WJQSERVER-STUDIO/httpc"
 	"github.com/infinite-iroha/touka"
 	"golang.org/x/net/http/httpguts"
@@ -32,8 +33,8 @@ import (
 
 // --- 对象池 ---
 var (
-	// copyBufferPool 用于 io.CopyBuffer 操作，减少内存分配。
-	// 此池用于在代理服务器和客户端之间复制响应体时使用的字节缓冲区。
+	// copyBufferPool 用于 io.CopyBuffer 操作，减少内存分配
+	// 此池用于在代理服务器和客户端之间复制响应体时使用的字节缓冲区
 	copyBufferPool = sync.Pool{
 		New: func() interface{} {
 			b := make([]byte, 32*1024) // 32KB 默认缓冲区大小
@@ -42,20 +43,20 @@ var (
 	}
 )
 
-// getCopyBuffer 从池中获取一个字节切片缓冲区。
+// getCopyBuffer 从池中获取一个字节切片缓冲区
 func getCopyBuffer() *[]byte {
 	return copyBufferPool.Get().(*[]byte)
 }
 
-// putCopyBuffer 将字节切片缓冲区返还到池中。
+// putCopyBuffer 将字节切片缓冲区返还到池中
 func putCopyBuffer(buf *[]byte) {
 	copyBufferPool.Put(buf)
 }
 
 // --- 辅助函数 ---
 
-// hopHeaders 定义了不应在代理之间转发的逐跳 HTTP 头部。
-// 这些头部是特定于单个TCP连接的，而不是端到端的。
+// hopHeaders 定义了不应在代理之间转发的逐跳 HTTP 头部
+// 这些头部是特定于单个TCP连接的，而不是端到端的
 var hopHeaders = []string{
 	"Connection",          // 控制当前连接的选项
 	"Proxy-Connection",    // 类似 Connection，但用于代理
@@ -68,8 +69,8 @@ var hopHeaders = []string{
 	"Upgrade",             // 用于请求切换到不同协议
 }
 
-// removeHopByHopHeaders 从给定的 http.Header 中移除所有逐跳头部。
-// 这是实现透明代理的关键步骤，确保代理不会干扰连接管理或协议特定的细节。
+// removeHopByHopHeaders 从给定的 http.Header 中移除所有逐跳头部
+// 这是实现透明代理的关键步骤，确保代理不会干扰连接管理或协议特定的细节
 func removeHopByHopHeaders(h http.Header) {
 	// 根据 RFC 7230, section 6.1, 移除 "Connection" 头部中列出的所有字段
 	for _, f := range h["Connection"] {
@@ -85,8 +86,8 @@ func removeHopByHopHeaders(h http.Header) {
 	}
 }
 
-// copyHeader 将所有头部从 src 复制到 dst。
-// 对于多值头部，它会为每个值调用 Add，从而保留所有值。
+// copyHeader 将所有头部从 src 复制到 dst
+// 对于多值头部，它会为每个值调用 Add，从而保留所有值
 func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
 		for _, v := range vv {
@@ -95,8 +96,8 @@ func copyHeader(dst, src http.Header) {
 	}
 }
 
-// singleJoiningSlash 安全地拼接两个 URL 路径段 a 和 b。
-// 它能正确处理 a 的尾部斜杠和 b 的头部斜杠，确保结果路径只有一个斜杠分隔（如果需要）。
+// singleJoiningSlash 安全地拼接两个 URL 路径段 a 和 b
+// 它能正确处理 a 的尾部斜杠和 b 的头部斜杠，确保结果路径只有一个斜杠分隔（如果需要）
 func singleJoiningSlash(a, b string) string {
 	aslash := strings.HasSuffix(a, "/")
 	bslash := strings.HasPrefix(b, "/")
@@ -113,7 +114,7 @@ func singleJoiningSlash(a, b string) string {
 }
 
 // upgradeType 从头部获取 "Upgrade" 字段的值，
-// 前提是 "Connection" 头部包含 "Upgrade" token (不区分大小写)。
+// 前提是 "Connection" 头部包含 "Upgrade" token (不区分大小写)
 func upgradeType(h http.Header) string {
 	if !httpguts.HeaderValuesContainsToken(h["Connection"], "Upgrade") {
 		return ""
@@ -121,8 +122,8 @@ func upgradeType(h http.Header) string {
 	return h.Get("Upgrade")
 }
 
-// cloneURL 深拷贝一个 url.URL 对象，包括 Userinfo。
-// 这对于防止原始 URL 对象在代理过程中被意外修改很重要。
+// cloneURL 深拷贝一个 url.URL 对象，包括 Userinfo
+// 这对于防止原始 URL 对象在代理过程中被意外修改很重要
 func cloneURL(u *url.URL) *url.URL {
 	if u == nil {
 		return nil
@@ -138,8 +139,8 @@ func cloneURL(u *url.URL) *url.URL {
 	return u2
 }
 
-// isNetErrClosed 检查错误是否表示网络连接已关闭的常见错误类型。
-// 这用于在双向复制数据时区分正常的连接关闭 (如 io.EOF) 和意外的网络错误。
+// isNetErrClosed 检查错误是否表示网络连接已关闭的常见错误类型
+// 这用于在双向复制数据时区分正常的连接关闭 (如 io.EOF) 和意外的网络错误
 func isNetErrClosed(err error) bool {
 	if err == nil {
 		return false
@@ -149,58 +150,58 @@ func isNetErrClosed(err error) bool {
 	return strings.Contains(s, "use of closed network connection") || strings.Contains(s, "broken pipe") || errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF)
 }
 
-// ResponseMiddleware 是一个在后端响应头已写入客户端，但在响应体复制之前执行的中间件类型。
-// 它允许在最后时刻修改客户端响应（主要是头部）或执行其他操作。
-// 如果中间件返回错误，将中止响应体的复制，并调用配置的 ErrorHandler。
+// ResponseMiddleware 是一个在后端响应头已写入客户端，但在响应体复制之前执行的中间件类型
+// 它允许在最后时刻修改客户端响应（主要是头部）或执行其他操作
+// 如果中间件返回错误，将中止响应体的复制，并调用配置的 ErrorHandler
 type ResponseMiddleware func(backendResp *http.Response, clientResWriter http.ResponseWriter, c *touka.Context) error
 
-// ReverseProxyConfig 包含反向代理的配置选项。
+// ReverseProxyConfig 包含反向代理的配置选项
 type ReverseProxyConfig struct {
-	// TargetURL 是后端目标服务器的基础 URL 字符串。
-	// 例如 "http://localhost:8081/api" 或 "https://service.example.com"。
-	// 对于 HandleReverseProxy，此字段会被使用。
-	// 对于其他接受 targetURL 参数的函数，此字段通常会被覆盖或忽略。
+	// TargetURL 是后端目标服务器的基础 URL 字符串
+	// 例如 "http://localhost:8081/api" 或 "https://service.example.com"
+	// 对于 HandleReverseProxy，此字段会被使用
+	// 对于其他接受 targetURL 参数的函数，此字段通常会被覆盖或忽略
 	TargetURL string
 
-	// HTTPClient 是用于执行出站请求的 httpc.Client 实例。
-	// 如果为 nil，将尝试从 touka.Context 的 c.GetHTTPC() 中获取。
+	// HTTPClient 是用于执行出站请求的 httpc.Client 实例
+	// 如果为 nil，将尝试从 touka.Context 的 c.GetHTTPC() 中获取
 	HTTPClient *httpc.Client
 
-	// RewriteRequest 是一个可选的回调函数，在发送请求到后端之前修改出站请求。
-	// 参数 inReq 是原始的入站请求 (来自客户端)。
-	// 参数 outReqBuilder 是 httpc.RequestBuilder，用于构建出站请求。
-	// 如果此函数返回错误，代理将中止并调用 ErrorHandler (在自动模式下) 或返回错误 (在手动模式下)。
+	// RewriteRequest 是一个可选的回调函数，在发送请求到后端之前修改出站请求
+	// 参数 inReq 是原始的入站请求 (来自客户端)
+	// 参数 outReqBuilder 是 httpc.RequestBuilder，用于构建出站请求
+	// 如果此函数返回错误，代理将中止并调用 ErrorHandler (在自动模式下) 或返回错误 (在手动模式下)
 	RewriteRequest func(inReq *http.Request, outReqBuilder *httpc.RequestBuilder) error
 
 	// ModifyResponse 是一个可选的回调函数，在收到后端响应后、
 	// 将其头部和状态码应用到客户端响应之前调用 (在自动模式下)
-	// 或在返回给手动模式调用者之前调用。
-	// 允许检查或修改将要写回客户端的响应（主要是头部）。
-	// 如果此函数返回错误，代理将调用 ErrorHandler (在自动模式下) 或返回错误 (在手动模式下)。
+	// 或在返回给手动模式调用者之前调用
+	// 允许检查或修改将要写回客户端的响应（主要是头部）
+	// 如果此函数返回错误，代理将调用 ErrorHandler (在自动模式下) 或返回错误 (在手动模式下)
 	ModifyResponse func(backendResp *http.Response) error
 
-	// ResponseMiddlewares 是一个响应处理中间件切片。
-	// 它们在后端响应头和状态码已写入客户端之后、响应体开始复制之前按顺序执行。
-	// 注意: 此选项仅在 ServeReverseProxy (自动模式) 中生效。
+	// ResponseMiddlewares 是一个响应处理中间件切片
+	// 它们在后端响应头和状态码已写入客户端之后、响应体开始复制之前按顺序执行
+	// 注意: 此选项仅在 ServeReverseProxy (自动模式) 中生效
 	ResponseMiddlewares []ResponseMiddleware
 
-	// ErrorHandler 是一个可选函数，用于处理代理过程中发生的错误。
-	// 如果为 nil，将使用默认的错误处理。
-	// 此处理器负责向客户端发送错误响应并中止 Touka Context (如果需要)。
+	// ErrorHandler 是一个可选函数，用于处理代理过程中发生的错误
+	// 如果为 nil，将使用默认的错误处理
+	// 此处理器负责向客户端发送错误响应并中止 Touka Context (如果需要)
 	ErrorHandler func(c *touka.Context, err error)
 
-	// FlushInterval 指定在复制响应体时刷新到客户端的刷新间隔。
-	// 零表示不周期性刷新。负值表示每次写入后立即刷新。
-	// 对于流式响应 (ContentLength -1 或 Content-Type text/event-stream) 会被覆盖为立即刷新。
-	// 注意: 此选项仅在 ServeReverseProxy (自动模式) 中生效。
+	// FlushInterval 指定在复制响应体时刷新到客户端的刷新间隔
+	// 零表示不周期性刷新负值表示每次写入后立即刷新
+	// 对于流式响应 (ContentLength -1 或 Content-Type text/event-stream) 会被覆盖为立即刷新
+	// 注意: 此选项仅在 ServeReverseProxy (自动模式) 中生效
 	FlushInterval time.Duration
 
 	// DirectUrl 跳过拼接, 传入target即是完整目标
 	isDirectUrl bool
 }
 
-// defaultProxyErrorHandler 是默认的错误处理器。
-// 它记录错误并通过 Touka Context 返回一个 502 Bad Gateway 响应。
+// defaultProxyErrorHandler 是默认的错误处理器
+// 它记录错误并通过 Touka Context 返回一个 502 Bad Gateway 响应
 func defaultProxyErrorHandler(c *touka.Context, err error) {
 	// 使用英文记录错误日志，包含请求方法和路径
 	// 已替换为 c.Errorf
@@ -216,12 +217,12 @@ func defaultProxyErrorHandler(c *touka.Context, err error) {
 	}
 }
 
-// prepareReverseProxy 验证配置并设置必要的组件，如目标 URL、HTTP 客户端和错误处理器。
-// 这是一个内部辅助函数，用于初始化和验证代理操作所需的通用配置。
-// 它优先使用 dynamicTargetURL (如果提供)，否则使用 config.TargetURL。
-// 如果 config.HTTPClient 为 nil，则尝试从 c.GetHTTPC() 获取。
-// 如果 config.ErrorHandler 为 nil，则使用 defaultProxyErrorHandler。
-// 返回准备好的 target *url.URL, *httpc.Client, error handler function, 以及任何准备错误。
+// prepareReverseProxy 验证配置并设置必要的组件，如目标 URL、HTTP 客户端和错误处理器
+// 这是一个内部辅助函数，用于初始化和验证代理操作所需的通用配置
+// 它优先使用 dynamicTargetURL (如果提供)，否则使用 config.TargetURL
+// 如果 config.HTTPClient 为 nil，则尝试从 c.GetHTTPC() 获取
+// 如果 config.ErrorHandler 为 nil，则使用 defaultProxyErrorHandler
+// 返回准备好的 target *url.URL, *httpc.Client, error handler function, 以及任何准备错误
 func prepareReverseProxy(c *touka.Context, config *ReverseProxyConfig, dynamicTargetURL ...string) (target *url.URL, httpClient *httpc.Client, errorHandler func(*touka.Context, error), err error) {
 	// 确定最终的目标 URL 字符串
 	targetURLStr := config.TargetURL // 默认为配置中的 TargetURL
@@ -265,17 +266,17 @@ func prepareReverseProxy(c *touka.Context, config *ReverseProxyConfig, dynamicTa
 	return // 返回准备好的组件和 nil 错误 (如果成功)
 }
 
-// ServeReverseProxyCore 是反向代理的核心逻辑，不直接处理响应体的复制。
+// ServeReverseProxyCore 是反向代理的核心逻辑，不直接处理响应体的复制
 // 它负责：
-// 1. 构建出站请求 (使用 httpc.RequestBuilder)。
-// 2. 应用 RewriteRequest 回调。
-// 3. 发送请求到后端 (使用 httpc.Client)。
-// 4. 处理 HTTP 1xx (Continue) 响应。
-// 5. 如果是协议升级 (如 WebSocket)，调用 handleProtocolUpgrade。
-// 6. 对于普通响应，移除逐跳头部并应用 ModifyResponse 回调。
+// 1. 构建出站请求 (使用 httpc.RequestBuilder)
+// 2. 应用 RewriteRequest 回调
+// 3. 发送请求到后端 (使用 httpc.Client)
+// 4. 处理 HTTP 1xx (Continue) 响应
+// 5. 如果是协议升级 (如 WebSocket)，调用 handleProtocolUpgrade
+// 6. 对于普通响应，移除逐跳头部并应用 ModifyResponse 回调
 //
-// 返回后端响应对象 `*http.Response`（Body 尚未关闭，由调用者负责）和任何发生的错误。
-// 此函数更偏向于“手动模式”的构建块。
+// 返回后端响应对象 `*http.Response`（Body 尚未关闭，由调用者负责）和任何发生的错误
+// 此函数更偏向于“手动模式”的构建块
 func ServeReverseProxyCore(c *touka.Context, config ReverseProxyConfig, target *url.URL, httpClient *httpc.Client) (backendResp *http.Response, err error) {
 	inReq := c.Request // 原始入站请求
 
@@ -349,8 +350,8 @@ func ServeReverseProxyCore(c *touka.Context, config ReverseProxyConfig, target *
 	// 设置请求体
 	if inReq.Body != nil && inReq.Body != http.NoBody {
 		outReqBuilder.SetBody(inReq.Body)
-		// ContentLength 由 httpc.RequestBuilder 或 http.NewRequest 内部根据 Body 类型处理。
-		// 如果需要精确控制，可以在 RewriteRequest 中获取最终的 *http.Request 并设置。
+		// ContentLength 由 httpc.RequestBuilder 或 http.NewRequest 内部根据 Body 类型处理
+		// 如果需要精确控制，可以在 RewriteRequest 中获取最终的 *http.Request 并设置
 	}
 
 	// 调用用户提供的 RewriteRequest 回调，允许用户在发送前最后修改出站请求
@@ -380,8 +381,8 @@ func ServeReverseProxyCore(c *touka.Context, config ReverseProxyConfig, target *
 				return nil
 			}
 			// 将 1xx 响应头和状态码写回原始客户端
-			// 注意：这会直接写入 c.Writer，对于完全手动的代理模式，用户可能不希望这样。
-			// 但对于 ServeReverseProxy (自动模式)，这是期望的行为。
+			// 注意：这会直接写入 c.Writer，对于完全手动的代理模式，用户可能不希望这样
+			// 但对于 ServeReverseProxy (自动模式)，这是期望的行为
 			clientResWriterHeaders := c.Writer.Header()
 			copyHeader(clientResWriterHeaders, http.Header(header))
 			c.Writer.WriteHeader(code)
@@ -402,23 +403,23 @@ func ServeReverseProxyCore(c *touka.Context, config ReverseProxyConfig, target *
 	roundTripMutex.Unlock()
 
 	if roundTripErr != nil {
-		// 请求后端失败。返回的 backendResp 此时可能为 nil，或者包含部分信息。
-		// 将错误和（可能存在的）响应一起返回给调用者处理。
+		// 请求后端失败返回的 backendResp 此时可能为 nil，或者包含部分信息
+		// 将错误和（可能存在的）响应一起返回给调用者处理
 		return backendResp, fmt.Errorf("request to backend failed via httpc: %w", roundTripErr) // 英文错误
 	}
-	// 至此，已成功从后端获取响应头。backendResp.Body 尚未关闭，由本函数的调用者负责。
+	// 至此，已成功从后端获取响应头backendResp.Body 尚未关闭，由本函数的调用者负责
 
 	// 3. 初步处理后端响应 (头部修改，协议升级判断)
 	// 如果是协议升级响应 (例如 WebSocket 的 101)，则特殊处理
 	if backendResp.StatusCode == http.StatusSwitchingProtocols {
-		// handleProtocolUpgrade 会负责处理与客户端和后端的连接劫持及数据复制。
-		// 它也会向客户端写入 101 响应头。
+		// handleProtocolUpgrade 会负责处理与客户端和后端的连接劫持及数据复制
+		// 它也会向客户端写入 101 响应头
 		if errUpgrade := handleProtocolUpgrade(c, inReq, backendResp); errUpgrade != nil {
-			// 协议升级失败。返回原始的 backendResp (其 Body 是劫持的连接或已关闭) 和错误。
+			// 协议升级失败返回原始的 backendResp (其 Body 是劫持的连接或已关闭) 和错误
 			return backendResp, errUpgrade
 		}
-		// 协议升级成功。backendResp.Body 现在代表与后端的劫持连接。
-		// ServeReverseProxyCore 的任务完成。
+		// 协议升级成功backendResp.Body 现在代表与后端的劫持连接
+		// ServeReverseProxyCore 的任务完成
 		return backendResp, nil
 	}
 
@@ -428,37 +429,37 @@ func ServeReverseProxyCore(c *touka.Context, config ReverseProxyConfig, target *
 	// 调用用户提供的 ModifyResponse 回调，允许修改后端响应（主要是头部）
 	if config.ModifyResponse != nil {
 		if errModify := config.ModifyResponse(backendResp); errModify != nil {
-			// 修改响应失败。返回原始的 backendResp 和错误。
+			// 修改响应失败返回原始的 backendResp 和错误
 			return backendResp, fmt.Errorf("ModifyResponse failed: %w", errModify) // 英文错误
 		}
 	}
-	// 返回处理过的后端响应和 nil 错误，表示核心代理步骤成功。
-	// backendResp.Body 仍需由调用者关闭。
+	// 返回处理过的后端响应和 nil 错误，表示核心代理步骤成功
+	// backendResp.Body 仍需由调用者关闭
 	return backendResp, nil
 }
 
-// ServeReverseProxyManual ("手动模式") 允许调用者更细致地控制反向代理的响应处理。
+// ServeReverseProxyManual ("手动模式") 允许调用者更细致地控制反向代理的响应处理
 // 它执行代理请求的核心逻辑 (通过 ServeReverseProxyCore)，处理协议升级，
-// 并返回处理后的后端响应头和整个后端响应对象。
+// 并返回处理后的后端响应头和整个后端响应对象
 //
 // 返回值:
-//   - processedBackendHeader (http.Header): 这是从后端响应中提取并处理过（移除了逐跳头部，应用了ModifyResponse）的头部。
-//     如果发生错误导致无法获取后端响应，此值可能为 nil。
-//   - backendResp (*http.Response): 从后端获取的原始（或已由ModifyResponse修改的）*http.Response 对象。
-//     调用者【始终负责】在处理完毕后调用 backendResp.Body.Close() 来释放资源，即使在发生错误时也是如此（如果 backendResp 非 nil）。
-//   - err (error): 代理过程中发生的任何错误。
+//   - processedBackendHeader (http.Header): 这是从后端响应中提取并处理过（移除了逐跳头部，应用了ModifyResponse）的头部
+//     如果发生错误导致无法获取后端响应，此值可能为 nil
+//   - backendResp (*http.Response): 从后端获取的原始（或已由ModifyResponse修改的）*http.Response 对象
+//     调用者【始终负责】在处理完毕后调用 backendResp.Body.Close() 来释放资源，即使在发生错误时也是如此（如果 backendResp 非 nil）
+//   - err (error): 代理过程中发生的任何错误
 //
 // 调用者责任:
-// 1. 检查返回的 `err`。
-// 2. 如果 `backendResp` 非 `nil`，必须调用 `backendResp.Body.Close()`。
-// 3. 根据 `processedBackendHeader` 和 `backendResp` (特别是 `backendResp.Body`) 自行构建对客户端的响应。
+// 1. 检查返回的 `err`
+// 2. 如果 `backendResp` 非 `nil`，必须调用 `backendResp.Body.Close()`
+// 3. 根据 `processedBackendHeader` 和 `backendResp` (特别是 `backendResp.Body`) 自行构建对客户端的响应
 //
 // 协议升级:
 // 如果 `err` 为 `nil` 且 `backendResp.StatusCode` 是 `http.StatusSwitchingProtocols` (101)，
-// 则表示协议升级已由 `ServeReverseProxyCore` 内部的 `handleProtocolUpgrade` 处理完毕。
-// `backendResp.Body` 将是与后端服务器的劫持连接 (`io.ReadWriteCloser`)。
-// 调用者此时通常不需要再对客户端做 HTTP 响应，因为连接已被劫持用于新协议。
-// 调用者仍需关闭这个 `backendResp.Body` (劫持的连接) 当它不再需要时。
+// 则表示协议升级已由 `ServeReverseProxyCore` 内部的 `handleProtocolUpgrade` 处理完毕
+// `backendResp.Body` 将是与后端服务器的劫持连接 (`io.ReadWriteCloser`)
+// 调用者此时通常不需要再对客户端做 HTTP 响应，因为连接已被劫持用于新协议
+// 调用者仍需关闭这个 `backendResp.Body` (劫持的连接) 当它不再需要时
 func ServeReverseProxyManual(c *touka.Context, config ReverseProxyConfig, dynamicTargetURL ...string) (processedBackendHeader http.Header, backendResp *http.Response, err error) {
 	// 初始化并验证代理配置
 	target, httpClient, _, prepErr := prepareReverseProxy(c, &config, dynamicTargetURL...)
@@ -467,22 +468,22 @@ func ServeReverseProxyManual(c *touka.Context, config ReverseProxyConfig, dynami
 		return nil, nil, fmt.Errorf("failed to prepare reverse proxy for manual serve: %w", prepErr) // 英文错误
 	}
 
-	// 调用核心代理逻辑。
+	// 调用核心代理逻辑
 	// 注意：errorHandler 参数在这里传递的是 prepareReverseProxy 返回的（可能是默认的），
-	// 但 ServeReverseProxyCore 在手动模式下不应主动调用它，而是返回错误。
-	// errorHandler 的主要作用是在自动模式 (ServeReverseProxy) 中。
-	// 这里传递 nil 也可以，因为 ServeReverseProxyCore 不会调用它（它返回错误）。
-	// 为了保持 ServeReverseProxyCore 的签名一致，我们仍然传递它。
+	// 但 ServeReverseProxyCore 在手动模式下不应主动调用它，而是返回错误
+	// errorHandler 的主要作用是在自动模式 (ServeReverseProxy) 中
+	// 这里传递 nil 也可以，因为 ServeReverseProxyCore 不会调用它（它返回错误）
+	// 为了保持 ServeReverseProxyCore 的签名一致，我们仍然传递它
 	coreResp, coreErr := ServeReverseProxyCore(c, config, target, httpClient)
 
 	// 无论 ServeReverseProxyCore 是否成功，如果它返回了一个 coreResp，
-	// 这个 coreResp (特别是它的 Body) 的关闭责任现在就属于 ServeReverseProxyManual 的调用者了。
-	// 我们将 coreResp 直接赋给 backendResp 返回。
+	// 这个 coreResp (特别是它的 Body) 的关闭责任现在就属于 ServeReverseProxyManual 的调用者了
+	// 我们将 coreResp 直接赋给 backendResp 返回
 
 	if coreErr != nil {
-		// 核心逻辑出错。
-		// 即使出错，coreResp 也可能包含一些信息（例如部分读取的响应头）。
-		// 将 coreResp 和 coreErr 一起返回。
+		// 核心逻辑出错
+		// 即使出错，coreResp 也可能包含一些信息（例如部分读取的响应头）
+		// 将 coreResp 和 coreErr 一起返回
 		var hdr http.Header
 		if coreResp != nil {
 			hdr = coreResp.Header // 如果响应对象存在，头部也可能存在
@@ -495,8 +496,8 @@ func ServeReverseProxyManual(c *touka.Context, config ReverseProxyConfig, dynami
 	return coreResp.Header, coreResp, nil
 }
 
-// ServeReverseProxy ("自动模式") 对给定的 Touka Context 执行完整的反向代理操作。
-// 它处理从构建请求到将响应体完全复制回客户端的所有步骤，包括错误处理和中间件。
+// ServeReverseProxy ("自动模式") 对给定的 Touka Context 执行完整的反向代理操作
+// 它处理从构建请求到将响应体完全复制回客户端的所有步骤，包括错误处理和中间件
 func ServeReverseProxy(c *touka.Context, config ReverseProxyConfig, dynamicTargetURL ...string) {
 	// 初始化并验证代理配置，获取目标URL、HTTP客户端和错误处理器
 	target, httpClient, errorHandler, err := prepareReverseProxy(c, &config, dynamicTargetURL...)
@@ -506,20 +507,20 @@ func ServeReverseProxy(c *touka.Context, config ReverseProxyConfig, dynamicTarge
 		return
 	}
 
-	// 调用核心代理逻辑获取后端响应。
-	// ServeReverseProxyCore 返回的 backendResp 的 Body 需要在本函数内负责关闭。
+	// 调用核心代理逻辑获取后端响应
+	// ServeReverseProxyCore 返回的 backendResp 的 Body 需要在本函数内负责关闭
 	backendResp, coreErr := ServeReverseProxyCore(c, config, target, httpClient)
 	// 使用 defer 确保 backendResp.Body 在函数退出前被关闭（除非是协议升级且连接已被完全劫持和管理）
 	if backendResp != nil && backendResp.Body != nil {
 		defer func() {
 			// 尝试消耗剩余的 Body 内容，有助于连接复用
-			_, _ = io.Copy(io.Discard, backendResp.Body)
+			_, _ = iox.Copy(io.Discard, backendResp.Body)
 			backendResp.Body.Close()
 		}()
 	}
 
 	if coreErr != nil {
-		// 核心代理逻辑发生错误。错误处理器负责处理并中止 Touka Context。
+		// 核心代理逻辑发生错误错误处理器负责处理并中止 Touka Context
 		errorHandler(c, fmt.Errorf("ServeReverseProxyCore failed in auto serve: %w", coreErr)) // 英文错误
 		return
 	}
@@ -527,9 +528,9 @@ func ServeReverseProxy(c *touka.Context, config ReverseProxyConfig, dynamicTarge
 	// 检查是否是协议升级响应 (例如 WebSocket 101)
 	if backendResp.StatusCode == http.StatusSwitchingProtocols {
 		// 如果是协议升级，ServeReverseProxyCore 内部的 handleProtocolUpgrade
-		// 已经处理了与客户端的连接劫持和101响应头的发送。
-		// backendResp.Body 此时代表与后端的劫持连接，其生命周期由 handleProtocolUpgrade 管理。
-		// ServeReverseProxy 在这里的工作已经完成。
+		// 已经处理了与客户端的连接劫持和101响应头的发送
+		// backendResp.Body 此时代表与后端的劫持连接，其生命周期由 handleProtocolUpgrade 管理
+		// ServeReverseProxy 在这里的工作已经完成
 		return
 	}
 
@@ -548,18 +549,18 @@ func ServeReverseProxy(c *touka.Context, config ReverseProxyConfig, dynamicTarge
 		c.Writer.Header().Add("Trailer", strings.Join(trailerKeys, ", "))
 	}
 
-	// 写入状态码到客户端。这之后就不能再修改响应头了。
+	// 写入状态码到客户端这之后就不能再修改响应头了
 	c.Writer.WriteHeader(backendResp.StatusCode)
 
-	// 执行响应处理中间件。这些中间件在状态码和头部已写入客户端后，但在响应体复制前执行。
+	// 执行响应处理中间件这些中间件在状态码和头部已写入客户端后，但在响应体复制前执行
 	// 它们可以进行日志记录，或通过 c.Writer (如果它支持某些接口) 做一些非常有限的修改，
-	// 但主要是用于观察或触发基于响应头的副作用。
+	// 但主要是用于观察或触发基于响应头的副作用
 	if len(config.ResponseMiddlewares) > 0 {
 		for _, mw := range config.ResponseMiddlewares {
 			// 将 Touka Context 传递给响应中间件，以便它们可以访问请求信息或中止 Context
 			if errMw := mw(backendResp, c.Writer, c); errMw != nil {
-				// 如果响应中间件返回错误，调用主错误处理器。
-				// 此时响应头和状态码已发送，错误处理器主要能做的就是记录错误和中止后续操作。
+				// 如果响应中间件返回错误，调用主错误处理器
+				// 此时响应头和状态码已发送，错误处理器主要能做的就是记录错误和中止后续操作
 				errorHandler(c, fmt.Errorf("ResponseMiddleware failed: %w", errMw)) // 英文错误
 				return                                                              // 中止后续响应体复制
 			}
@@ -573,21 +574,21 @@ func ServeReverseProxy(c *touka.Context, config ReverseProxyConfig, dynamicTarge
 	}
 
 	// 复制响应体到客户端
-	// backendResp.Body 将在 defer 中关闭。
+	// backendResp.Body 将在 defer 中关闭
 	flushInterval := determineActualFlushInterval(backendResp, config.FlushInterval)
 	if copyErr := copyProxiedResponseBody(c.Writer, backendResp.Body, flushInterval); copyErr != nil {
-		// 记录复制响应体时的错误。此时头部和状态码已发送。
+		// 记录复制响应体时的错误此时头部和状态码已发送
 		// 常见的错误是客户端断开连接 (isNetErrClosed 会捕获 io.EOF 或 "broken pipe")
-		// 或者上下文被取消 (例如，Touka 的超时中间件触发)。
-		// 只有在不是正常的网络关闭或上下文取消时才打印详细日志。
+		// 或者上下文被取消 (例如，Touka 的超时中间件触发)
+		// 只有在不是正常的网络关闭或上下文取消时才打印详细日志
 		if !isNetErrClosed(copyErr) && !errors.Is(copyErr, c.Request.Context().Err()) {
 			// 使用英文记录日志
 			// 已替换为 c.Errorf
 			c.Errorf("toukautil.ServeReverseProxy: Error copying response body for %s %s: %v", c.Request.Method, c.Request.URL.Path, copyErr)
 		}
-		// errorHandler 在这里不适合调用，因为它可能会尝试再次写入响应头。
-		// Touka 的 Context 可能会因客户端断开而自动中止。
-		// 确保 Touka 的 Recovery 中间件能处理这里的 panic (如果 copyProxiedResponseBody 内部 panic 的话)。
+		// errorHandler 在这里不适合调用，因为它可能会尝试再次写入响应头
+		// Touka 的 Context 可能会因客户端断开而自动中止
+		// 确保 Touka 的 Recovery 中间件能处理这里的 panic (如果 copyProxiedResponseBody 内部 panic 的话)
 		return
 	}
 
@@ -603,12 +604,12 @@ func ServeReverseProxy(c *touka.Context, config ReverseProxyConfig, dynamicTarge
 			}
 		}
 	}
-	// 代理操作完成。Touka 的处理链会自然结束，或被之前的 c.Abort() 中止。
+	// 代理操作完成Touka 的处理链会自然结束，或被之前的 c.Abort() 中止
 }
 
-// HandleReverseProxy 实现了一个便捷的 Touka Handler，用于将请求完整地反向代理。
-// 它内部调用 ServeReverseProxy，并使用 config 中定义的 TargetURL。
-// 这个函数适用于在定义 Touka 路由时，直接指定一个完整的反向代理行为。
+// HandleReverseProxy 实现了一个便捷的 Touka Handler，用于将请求完整地反向代理
+// 它内部调用 ServeReverseProxy，并使用 config 中定义的 TargetURL
+// 这个函数适用于在定义 Touka 路由时，直接指定一个完整的反向代理行为
 //
 // 示例用法：
 //
@@ -620,10 +621,10 @@ func HandleReverseProxy(c *touka.Context, config ReverseProxyConfig) {
 	ServeReverseProxy(c, config) // 直接调用全自动模式的 ServeReverseProxy
 }
 
-// SingleReverseProxy 将当前 Touka Context 中的请求反向代理到指定的 `targetURL`。
-// 它使用传入的 `config` 作为基础配置，但 `targetURL` 参数会覆盖 `config.TargetURL`。
+// SingleReverseProxy 将当前 Touka Context 中的请求反向代理到指定的 `targetURL`
+// 它使用传入的 `config` 作为基础配置，但 `targetURL` 参数会覆盖 `config.TargetURL`
 // 这个函数适用于那些目标 URL 需要在运行时动态确定的场景，
-// 例如，基于请求的某些参数或头部来选择不同的后端服务。
+// 例如，基于请求的某些参数或头部来选择不同的后端服务
 //
 // 示例用法：
 //
@@ -638,9 +639,9 @@ func SingleReverseProxy(targetURL string, c *touka.Context, config ReverseProxyC
 	ServeReverseProxy(c, config, targetURL)
 }
 
-// SimpleSingleReverseProxy 提供了一个最简单的接口来反向代理到一个完整的 URL。
-// 它使用默认的配置，只要求提供目标 URL 和 Touka Context。
-// 适用于快速、无特殊配置的单个 URL 代理场景。
+// SimpleSingleReverseProxy 提供了一个最简单的接口来反向代理到一个完整的 URL
+// 它使用默认的配置，只要求提供目标 URL 和 Touka Context
+// 适用于快速、无特殊配置的单个 URL 代理场景
 //
 // 示例用法：
 //
@@ -655,10 +656,10 @@ func SimpleSingleReverseProxy(targetURL string, c *touka.Context) {
 }
 
 // DirectSingleReverseProxy 提供了一个简单的接口来反向代理到一个完整的 URL，
-// 并且允许传入一个临时的 ReverseProxyConfig 来覆盖默认配置。
-// 与 SimpleSingleReverseProxy 不同，它不使用完全默认配置，而是基于传入的 tempConfig。
+// 并且允许传入一个临时的 ReverseProxyConfig 来覆盖默认配置
+// 与 SimpleSingleReverseProxy 不同，它不使用完全默认配置，而是基于传入的 tempConfig
 // 同时，它设置 config.isDirectUrl = true，表示 targetURL 参数就是完整的后端 URL，
-// 不需要再与原始请求路径拼接。
+// 不需要再与原始请求路径拼接
 //
 // 示例用法：
 //
@@ -682,9 +683,9 @@ func DirectSingleReverseProxy(targetURL string, tempConfig *ReverseProxyConfig, 
 }
 
 // determineActualFlushInterval 根据响应的 Content-Type 和 ContentLength
-// 以及用户配置的 FlushInterval，来决定实际应该使用的刷新间隔。
+// 以及用户配置的 FlushInterval，来决定实际应该使用的刷新间隔
 // 例如，对于 Server-Sent Events ("text/event-stream") 或内容长度未知的流式响应，
-// 通常应立即刷新 (-1)。
+// 通常应立即刷新 (-1)
 func determineActualFlushInterval(res *http.Response, configuredInterval time.Duration) time.Duration {
 	resCT := res.Header.Get("Content-Type")
 	// 解析媒体类型，忽略参数（如 charset）
@@ -699,8 +700,8 @@ func determineActualFlushInterval(res *http.Response, configuredInterval time.Du
 	return configuredInterval
 }
 
-// copyProxiedResponseBody 将响应体从 src (后端响应体) 复制到 dst (客户端 ResponseWriter)。
-// 它支持通过 flushInterval 控制的周期性刷新。
+// copyProxiedResponseBody 将响应体从 src (后端响应体) 复制到 dst (客户端 ResponseWriter)
+// 它支持通过 flushInterval 控制的周期性刷新
 func copyProxiedResponseBody(dst http.ResponseWriter, src io.Reader, flushInterval time.Duration) error {
 	var w io.Writer = dst // 默认直接写入 ResponseWriter
 	var flusher http.Flusher
@@ -713,7 +714,7 @@ func copyProxiedResponseBody(dst http.ResponseWriter, src io.Reader, flushInterv
 	// 如果需要刷新 (flushInterval 非零) 且 ResponseWriter 支持刷新
 	if flushInterval != 0 && flusher != nil {
 		// 创建一个 maxLatencyWriter 来包装原始的 ResponseWriter，
-		// 它会根据 flushInterval 自动或周期性地调用 Flush。
+		// 它会根据 flushInterval 自动或周期性地调用 Flush
 		mlw := newMaxLatencyWriter(dst, flushInterval, flusher)
 		defer mlw.stop() // 确保 maxLatencyWriter 的资源（如定时器）被释放
 		w = mlw          // 将写入目标切换到 maxLatencyWriter
@@ -729,14 +730,14 @@ func copyProxiedResponseBody(dst http.ResponseWriter, src io.Reader, flushInterv
 	return nil
 }
 
-// handleProtocolUpgrade 处理协议升级响应 (如 WebSocket 的 101 Switching Protocols)。
+// handleProtocolUpgrade 处理协议升级响应 (如 WebSocket 的 101 Switching Protocols)
 // 它负责：
-// 1. 验证客户端请求的升级协议与后端响应的升级协议是否匹配。
-// 2. 劫持客户端连接 (通过 clientResWriter.Hijack())。
-// 3. 获取与后端的原始连接 (通过 backendResp.Body 类型断言)。
-// 4. 将 101 升级响应头写回客户端。
-// 5. 启动两个 goroutine 在客户端连接和后端连接之间双向复制数据。
-// 6. 管理这些 goroutine 的生命周期和错误处理。
+// 1. 验证客户端请求的升级协议与后端响应的升级协议是否匹配
+// 2. 劫持客户端连接 (通过 clientResWriter.Hijack())
+// 3. 获取与后端的原始连接 (通过 backendResp.Body 类型断言)
+// 4. 将 101 升级响应头写回客户端
+// 5. 启动两个 goroutine 在客户端连接和后端连接之间双向复制数据
+// 6. 管理这些 goroutine 的生命周期和错误处理
 // (此函数与你提供的最新版本基本一致，确保 ascii.IsPrint 和 ascii.EqualFold 可用)
 func handleProtocolUpgrade(c *touka.Context, inReq *http.Request, backendResp *http.Response) error {
 	clientResWriter := c.Writer                               // 客户端的 ResponseWriter
@@ -755,10 +756,10 @@ func handleProtocolUpgrade(c *touka.Context, inReq *http.Request, backendResp *h
 	backendConn, ok := backendResp.Body.(io.ReadWriteCloser)
 	if !ok {
 		// 这通常不应该发生，因为标准库的 http.Transport 在收到 101 响应后，
-		// 会将底层的 net.Conn 放入响应的 Body 字段。
+		// 会将底层的 net.Conn 放入响应的 Body 字段
 		return errors.New("internal error: 101 Switching Protocols response with non-writable/closable body") // 英文错误
 	}
-	// backendConn (即 backendResp.Body) 的关闭责任现在由这个函数或其调用的 goroutine 管理。
+	// backendConn (即 backendResp.Body) 的关闭责任现在由这个函数或其调用的 goroutine 管理
 
 	// 尝试劫持客户端连接
 	hijacker, ok := clientResWriter.(http.Hijacker)
@@ -771,12 +772,12 @@ func handleProtocolUpgrade(c *touka.Context, inReq *http.Request, backendResp *h
 		backendConn.Close()                                              // 劫持失败，关闭后端连接
 		return fmt.Errorf("failed to hijack client connection: %w", err) // 英文错误
 	}
-	// clientConn 也需要在完成后关闭。我们使用 defer clientConn.Close()，
-	// 但双向复制的 goroutine 也会在结束时尝试关闭它。
+	// clientConn 也需要在完成后关闭我们使用 defer clientConn.Close()，
+	// 但双向复制的 goroutine 也会在结束时尝试关闭它
 
-	// 为了确保在各种情况下（包括 panic）连接都能被关闭，使用 defer。
-	// 但由于双向复制 goroutine 也会关闭连接，需要小心处理 "use of closed network connection" 错误。
-	// closeClientOnce 和 closeBackendOnce 用于确保每个连接只被这个 defer 栈尝试关闭一次。
+	// 为了确保在各种情况下（包括 panic）连接都能被关闭，使用 defer
+	// 但由于双向复制 goroutine 也会关闭连接，需要小心处理 "use of closed network connection" 错误
+	// closeClientOnce 和 closeBackendOnce 用于确保每个连接只被这个 defer 栈尝试关闭一次
 	var closeClientOnce sync.Once
 	var closeBackendOnce sync.Once
 	defer closeClientOnce.Do(func() { clientConn.Close() })
@@ -808,8 +809,8 @@ func handleProtocolUpgrade(c *touka.Context, inReq *http.Request, backendResp *h
 		backendResp.ProtoMajor = 1
 		backendResp.ProtoMinor = 1
 	}
-	// http.Response.Write 方法会将状态行和头部写入。
-	// 对于 101 响应，它不应该尝试写入 Body (因为 Body 是 nil，或者被视为劫持连接)。
+	// http.Response.Write 方法会将状态行和头部写入
+	// 对于 101 响应，它不应该尝试写入 Body (因为 Body 是 nil，或者被视为劫持连接)
 	if err = backendResp.Write(clientBrw); err != nil {
 		return fmt.Errorf("error writing 101 response to client: %w", err) // 英文错误
 	}
@@ -829,7 +830,7 @@ func handleProtocolUpgrade(c *touka.Context, inReq *http.Request, backendResp *h
 		defer closeBackendOnce.Do(func() { backendConn.Close() }) // 如果这边先出错，也关闭后端连接
 
 		// 从 backendConn 读取，写入 clientConn (因为 clientBrw.Writer 底层是 clientConn)
-		_, copyErr := io.Copy(clientConn, backendConn)
+		_, copyErr := iox.Copy(clientConn, backendConn)
 		if copyErr != nil && !isNetErrClosed(copyErr) { // 忽略正常的 EOF 或连接关闭错误
 			// 只有在发生意外错误时才发送到 errChan
 			select {
@@ -846,7 +847,7 @@ func handleProtocolUpgrade(c *touka.Context, inReq *http.Request, backendResp *h
 		defer closeClientOnce.Do(func() { clientConn.Close() })   // 如果这边先出错，也关闭客户端连接
 
 		// 从 clientConn (通过 clientBrw.Reader 以处理已缓冲数据) 读取，写入 backendConn
-		_, copyErr := io.Copy(backendConn, clientBrw.Reader)
+		_, copyErr := iox.Copy(backendConn, clientBrw.Reader)
 		if copyErr != nil && !isNetErrClosed(copyErr) { // 忽略正常的 EOF 或连接关闭错误
 			select {
 			case errChan <- fmt.Errorf("copy from client to backend failed: %w", copyErr): // 英文错误
@@ -881,7 +882,7 @@ func handleProtocolUpgrade(c *touka.Context, inReq *http.Request, backendResp *h
 		}
 	case <-waitAllCopiesDone: // 所有复制正常完成 (wg.Wait() 返回，没有错误发送到 errChan)
 		c.Infof("toukautil.handleProtocolUpgrade: Bidirectional copy completed successfully for %s", inReq.URL.Path) // 英文日志
-		// 此时，仍需检查在 wg.Wait() 完成后，是否有非常晚的错误或上下文取消。
+		// 此时，仍需检查在 wg.Wait() 完成后，是否有非常晚的错误或上下文取消
 		// （这种概率较小，但为了健壮性可以检查）
 		select {
 		case err = <-errChan: // 捕获可能在等待期间发生的、但未被第一个 select case 选中的错误
@@ -904,11 +905,11 @@ func handleProtocolUpgrade(c *touka.Context, inReq *http.Request, backendResp *h
 	}
 }
 
-// maxLatencyWriter 用于控制响应体复制时的刷新行为。
-// 它包装了一个 io.Writer (通常是 http.ResponseWriter) 和一个 http.Flusher。
-// 如果 latency < 0，则每次 Write 后立即 Flush。
-// 如果 latency > 0，则在每次 Write 后，如果在 latency 时间内没有新的 Write，则调用 Flush。
-// 如果 latency == 0，则不进行基于延迟的 Flush (依赖外部或连接关闭时的刷新)。
+// maxLatencyWriter 用于控制响应体复制时的刷新行为
+// 它包装了一个 io.Writer (通常是 http.ResponseWriter) 和一个 http.Flusher
+// 如果 latency < 0，则每次 Write 后立即 Flush
+// 如果 latency > 0，则在每次 Write 后，如果在 latency 时间内没有新的 Write，则调用 Flush
+// 如果 latency == 0，则不进行基于延迟的 Flush (依赖外部或连接关闭时的刷新)
 type maxLatencyWriter struct {
 	dst     io.Writer     // 实际写入的目标
 	flusher http.Flusher  // 用于刷新缓冲区的接口
@@ -919,10 +920,10 @@ type maxLatencyWriter struct {
 	flushPending bool        // 标记是否有数据等待刷新
 }
 
-// newMaxLatencyWriter 创建一个新的 maxLatencyWriter 实例。
-// dst 是最终的写入目标。
-// latency 是刷新延迟。
-// flusher 是从 dst 获取的 http.Flusher (如果 dst 支持)。
+// newMaxLatencyWriter 创建一个新的 maxLatencyWriter 实例
+// dst 是最终的写入目标
+// latency 是刷新延迟
+// flusher 是从 dst 获取的 http.Flusher (如果 dst 支持)
 func newMaxLatencyWriter(dst io.Writer, latency time.Duration, flusher http.Flusher) *maxLatencyWriter {
 	return &maxLatencyWriter{
 		dst:     dst,
@@ -932,12 +933,12 @@ func newMaxLatencyWriter(dst io.Writer, latency time.Duration, flusher http.Flus
 	// 定时器将在第一次符合条件的 Write 操作时启动
 }
 
-// Write 将数据写入 dst，并根据 latency 和 flusher 的存在来管理刷新。
+// Write 将数据写入 dst，并根据 latency 和 flusher 的存在来管理刷新
 func (m *maxLatencyWriter) Write(p []byte) (n int, err error) {
 	// 注意: 标准库 httputil 中的 maxLatencyWriter 在这里的锁处理更复杂，
 	// 它允许 dst.Write 在锁外执行（如果 dst 是线程安全的），
-	// 仅在操作共享状态 (timer, flushPending) 时加锁。
-	// Touka 的 ResponseWriter 通常不是设计为并发写入的，所以这里的全局锁是合适的。
+	// 仅在操作共享状态 (timer, flushPending) 时加锁
+	// Touka 的 ResponseWriter 通常不是设计为并发写入的，所以这里的全局锁是合适的
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -971,12 +972,12 @@ func (m *maxLatencyWriter) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-// delayedFlush 是由 time.AfterFunc 调用的函数，用于执行延迟刷新。
+// delayedFlush 是由 time.AfterFunc 调用的函数，用于执行延迟刷新
 func (m *maxLatencyWriter) delayedFlush() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// 再次检查 flushPending，因为在 timer 触发和此函数获取锁之间，
-	// stop() 可能已经被调用，或者新的 Write 可能已经重置了 timer。
+	// stop() 可能已经被调用，或者新的 Write 可能已经重置了 timer
 	if !m.flushPending || m.flusher == nil {
 		return
 	}
@@ -985,8 +986,8 @@ func (m *maxLatencyWriter) delayedFlush() {
 	// AfterFunc 是一次性的，下次需要时会重新创建或 Reset
 }
 
-// stop 停止 maxLatencyWriter 的任何挂起的刷新操作，并释放其资源（如定时器）。
-// 通常在代理完成响应体复制后由 defer调用。
+// stop 停止 maxLatencyWriter 的任何挂起的刷新操作，并释放其资源（如定时器）
+// 通常在代理完成响应体复制后由 defer调用
 func (m *maxLatencyWriter) stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
