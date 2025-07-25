@@ -5,7 +5,7 @@ go 1.24.5
 require (
 	github.com/WJQSERVER-STUDIO/go-utils/iox v0.0.2
 	github.com/WJQSERVER-STUDIO/httpc v0.8.1
-	github.com/infinite-iroha/touka v0.3.1
+	github.com/infinite-iroha/touka v0.3.3
 	golang.org/x/net v0.42.0
 	golang.org/x/time v0.12.0
 )
