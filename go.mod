@@ -7,7 +7,7 @@ require (
 	github.com/WJQSERVER-STUDIO/httpc v0.8.2
 	github.com/infinite-iroha/touka v0.3.1
 	golang.org/x/net v0.42.0
-	golang.org/x/time v0.12.0
+	golang.org/x/time v0.14.0
 )
 
 require (
